@@ -185,3 +185,45 @@ main#main-content:focus {
 @media (prefers-reduced-motion: reduce) {
   .copy-ripple { display: none; }
 }
+
+/* TrustPay pagination: keep navigation in a single bounded row. */
+.trustpay-pagination { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+.trustpay-pagination .pagination-controls {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.trustpay-pagination .pagination-button {
+  flex-shrink: 0;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+}
+.trustpay-pagination .pagination-ellipsis {
+  flex: 0 0 12px;
+  text-align: center;
+  font-size: 0.75rem;
+}
+.trustpay-pagination .pagination-icon { display: none; }
+@media (max-width: 767px) {
+  .trustpay-pagination .pagination-controls { gap: 4px; }
+  .trustpay-pagination .pagination-button {
+    min-width: 32px;
+    min-height: 44px;
+    padding: 4px 2px;
+    border-radius: 10px;
+  }
+  .trustpay-pagination .pagination-button[data-long-number] { font-size: 0.625rem; }
+  .trustpay-pagination .pagination-label { display: none; }
+  .trustpay-pagination .pagination-icon {
+    display: inline-block;
+    width: 24px;
+    font-size: 24px;
+    line-height: 1;
+  }
+  .trustpay-pagination .pagination-ellipsis { flex-basis: 10px; }
+}

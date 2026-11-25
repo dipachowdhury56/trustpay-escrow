@@ -4,13 +4,12 @@ import React from 'react';
 import { useWalletStore, useActiveWalletAddress } from '@/store/walletStore';
 import { ClientDashboard } from './ClientDashboard';
 import { FreelancerDashboard } from './FreelancerDashboard';
+import WalletConnect, { WalletAddressCopy } from './WalletConnect';
 import { ArbiterDashboard } from './ArbiterDashboard';
 import { RoleSwitcher } from './RoleSwitcher';
-import WalletConnect from './WalletConnect';
 import Link from 'next/link';
 import { OrgWalletSwitcher } from './OrgWalletSwitcher';
 import NotificationBell from './NotificationBell';
-import { CryptoId } from '@/components/ui/CryptoId';
 
 export function DashboardRouter() {
   const { address, activeRole, disconnect } = useWalletStore();
@@ -46,6 +45,8 @@ export function DashboardRouter() {
     );
   }
 
+  const displayedAddress = activeWalletAddress || address;
+
   return (
     <div className="min-h-screen bg-[#121212] text-white">
       {/* Top Global Capability Switcher Bar */}
@@ -54,12 +55,7 @@ export function DashboardRouter() {
           <span className="font-extrabold text-blue-500 tracking-wider">TRUSTPAY ESCROW</span>
           <span className="text-[#52525b]" aria-hidden="true">|</span>
           <span className="text-[#a1a1aa]">Wallet:</span>
-          <CryptoId
-            value={address}
-            head={6}
-            tail={4}
-            className="font-semibold text-white bg-[#27272a] px-2.5 py-0.5 rounded-md border border-[#3f3f46]"
-          />
+          <WalletAddressCopy key={displayedAddress} address={displayedAddress} header />
           <button
             type="button"
             onClick={disconnect}
