@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { isConnected, requestAccess, getNetworkDetails, setAllowed, signTransaction } from "@stellar/freighter-api";
 import { toast } from "sonner";
@@ -36,6 +36,111 @@ interface WalletOption {
   badgeColor?: string;
 }
 
+export function WalletAddressCopy({ address, header = false }: { address: string; header?: boolean }) {
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+  const copied = !!address && copiedAddress === address;
+  const [addressHovered, setAddressHovered] = useState(false);
+  const [addressFocused, setAddressFocused] = useState(false);
+  const [tooltipDismissed, setTooltipDismissed] = useState(false);
+  const addressTooltipId = useId();
+  const copyResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copyAttempt = useRef(0);
+  const showAddressTooltip = (addressHovered || addressFocused) && !tooltipDismissed;
+
+  const resetCopyFeedback = useCallback(() => {
+    copyAttempt.current++;
+    if (copyResetTimer.current !== null) clearTimeout(copyResetTimer.current);
+    setCopiedAddress(null);
+  }, []);
+
+  // Invalidate pending writes and feedback whenever this wallet lifetime ends.
+  useEffect(() => resetCopyFeedback, [address, resetCopyFeedback]);
+
+  useEffect(() => {
+    if (!showAddressTooltip) return;
+
+    const dismissTooltip = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        resetCopyFeedback();
+        setTooltipDismissed(true);
+      }
+    };
+    document.addEventListener("keydown", dismissTooltip);
+    return () => document.removeEventListener("keydown", dismissTooltip);
+  }, [showAddressTooltip, resetCopyFeedback]);
+  const copyAddress = async () => {
+    if (!address) return;
+    const attempt = ++copyAttempt.current;
+    if (copyResetTimer.current !== null) clearTimeout(copyResetTimer.current);
+    setCopiedAddress(null);
+    try {
+      await navigator.clipboard.writeText(address);
+      if (attempt !== copyAttempt.current) return;
+      if (copyResetTimer.current !== null) clearTimeout(copyResetTimer.current);
+      setCopiedAddress(address);
+      setTooltipDismissed(false);
+      toast.success("Stellar address copied to clipboard!");
+      copyResetTimer.current = setTimeout(() => {
+        setCopiedAddress(null);
+        setTooltipDismissed(true);
+      }, 2000);
+    } catch {
+      if (attempt !== copyAttempt.current) return;
+      toast.error("Unable to copy address. Please try again.");
+    }
+  };
+
+  return (
+    <div
+      className={header ? "relative shrink-0 max-w-full" : "relative w-full"}
+      onMouseEnter={() => {
+        setAddressHovered(true);
+        setTooltipDismissed(false);
+      }}
+      onMouseLeave={() => {
+        setAddressHovered(false);
+        resetCopyFeedback();
+      }}
+      onPointerDown={() => setAddressFocused(false)}
+      onFocus={(event) => {
+        setAddressFocused(event.target.matches(":focus-visible"));
+        setTooltipDismissed(false);
+      }}
+      onBlur={() => {
+        setAddressFocused(false);
+        resetCopyFeedback();
+      }}
+    >
+      <button
+        type="button"
+        onClick={copyAddress}
+        aria-label="Copy full Stellar address"
+        aria-describedby={showAddressTooltip ? addressTooltipId : undefined}
+        className={header
+          ? "inline-flex min-h-10 max-w-full items-center gap-1.5 rounded-md border border-[#3f3f46] bg-[#27272a] px-2.5 py-1 text-white cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+          : "flex min-h-10 w-full items-center justify-between gap-2 rounded-xl border border-[#3f3f46] bg-[#18181b] px-3.5 py-2 text-left cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"}
+      >
+        <CryptoId value={address} head={header ? 6 : 8} tail={header ? 4 : 8} title="" className="text-white truncate" />
+        <span className={header ? "shrink-0 text-[#a1a1aa]" : "flex shrink-0 items-center gap-1 rounded-md bg-[#27272a] px-2 py-1 text-xs text-[#a1a1aa]"}>
+          <svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.75} stroke="currentColor" className="h-3.5 w-3.5">
+            <rect x="8" y="8" width="12" height="12" rx="2" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+          </svg>
+          {!header && (copied ? "Copied! ✓" : "Copy")}
+        </span>
+      </button>
+      {showAddressTooltip && (
+        <div id={addressTooltipId} role="tooltip" className={header ? "absolute top-full left-0 z-20 w-full pt-2" : "absolute bottom-full left-1/2 z-20 w-max max-w-full -translate-x-1/2 pb-2"}>
+          <span className="block rounded-md border border-[#3f3f46] bg-[#18181b] px-3 py-2 text-center text-xs text-white shadow-lg">
+            {copied ? "Copied!" : "Click to copy full Stellar address"}
+          </span>
+        </div>
+      )}
+      <span role="status" className="sr-only">{copied ? "Stellar address copied to clipboard." : ""}</span>
+    </div>
+  );
+}
+
 export default function WalletConnect() {
   const { address, activeRole, walletName, setWalletInfo, disconnect } = useWalletStore();
   const [isConnecting, setIsConnecting] = useState(false);
@@ -48,7 +153,6 @@ export default function WalletConnect() {
   const [tempAddress, setTempAddress] = useState("");
   const [tempWalletName, setTempWalletName] = useState("Freighter");
   const [tempSignedXdr, setTempSignedXdr] = useState("");
-  const [copied, setCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEscapeKey(() => {
     setShowEmailModal(false);
@@ -340,15 +444,6 @@ export default function WalletConnect() {
     }
   };
 
-  const copyAddress = () => {
-    if (address) {
-      navigator.clipboard.writeText(address);
-      setCopied(true);
-      toast.success("Stellar address copied to clipboard!");
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
   // Email registration modal for first-time connected users
   const emailModalContent = showEmailModal ? (
     <div className="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
@@ -526,16 +621,7 @@ export default function WalletConnect() {
             </span>
           </div>
 
-          <div className="flex items-center gap-2 bg-[#18181b] px-3.5 py-2 rounded-xl border border-[#3f3f46] w-full justify-between">
-            <CryptoId value={address} head={8} tail={8} className="text-white truncate" />
-            <button
-              type="button"
-              onClick={copyAddress}
-              className="text-xs text-[#a1a1aa] hover:text-white transition-colors px-2 py-1 bg-[#27272a] rounded-md cursor-pointer"
-            >
-              {copied ? "Copied! ✓" : "Copy"}
-            </button>
-          </div>
+          <WalletAddressCopy address={address} />
 
           <span className="text-xs font-bold px-3 py-1 bg-[#052e16] text-[#22c55e] rounded-full border border-[#14532d]">
             Multi-Role Active ({activeRole})

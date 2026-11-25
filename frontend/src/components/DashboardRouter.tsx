@@ -4,13 +4,12 @@ import React from 'react';
 import { useWalletStore, useActiveWalletAddress } from '@/store/walletStore';
 import { ClientDashboard } from './ClientDashboard';
 import { FreelancerDashboard } from './FreelancerDashboard';
+import WalletConnect, { WalletAddressCopy } from './WalletConnect';
 import { ArbiterDashboard } from './ArbiterDashboard';
 import { RoleSwitcher } from './RoleSwitcher';
-import WalletConnect from './WalletConnect';
 import Link from 'next/link';
 import { OrgWalletSwitcher } from './OrgWalletSwitcher';
 import NotificationBell from './NotificationBell';
-import { CryptoId } from '@/components/ui/CryptoId';
 
 export function DashboardRouter() {
   const { address, activeRole, disconnect } = useWalletStore();
@@ -46,20 +45,17 @@ export function DashboardRouter() {
     );
   }
 
+  const displayedAddress = activeWalletAddress || address;
+
   return (
     <div className="min-h-screen bg-[#121212] text-white">
       {/* Top Global Capability Switcher Bar */}
       <div className="w-full bg-[#18181b] border-b border-[#27272a] px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs sm:text-sm">
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="font-extrabold text-blue-500 tracking-wider">TRUSTPAY ESCROW</span>
           <span className="text-[#52525b]">|</span>
           <span className="text-[#a1a1aa]">Wallet:</span>
-          <CryptoId
-            value={address}
-            head={6}
-            tail={4}
-            className="font-semibold text-white bg-[#27272a] px-2.5 py-0.5 rounded-md border border-[#3f3f46]"
-          />
+          <WalletAddressCopy key={displayedAddress} address={displayedAddress} header />
           <button
             onClick={disconnect}
             className="text-[11px] text-[#71717a] hover:text-red-400 font-semibold underline transition-colors ml-2"
