@@ -1,7 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import NumberRoll from './NumberRoll';
 import { toast } from 'sonner';
+import { Pagination } from './Pagination';
+import { getPagination } from '@/lib/pagination';
 import { useRouter } from 'next/navigation';
 import { useWalletStore, useActiveWalletAddress } from '@/store/walletStore';
 import { authFetch } from '@/lib/api';
@@ -72,7 +75,9 @@ export function ClientDashboard({ defaultTab = 'projects' }: ClientDashboardProp
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const listRef = useRef<HTMLDivElement>(null);
+  const projectRequest = useRef(0);
   const [totalProjects, setTotalProjects] = useState(0);
 
   // Selected project for Applicants view
@@ -166,14 +171,21 @@ export function ClientDashboard({ defaultTab = 'projects' }: ClientDashboardProp
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Function to fetch real projects from backend
-  const fetchBackendProjects = async (pageToFetch = currentPage) => {
+  const fetchBackendProjects = async (pageToFetch = currentPage, size = pageSize) => {
+    const requestId = ++projectRequest.current;
     setLoading(true);
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
       const clientParam = activeWalletAddress ? `&client_address=${encodeURIComponent(activeWalletAddress)}` : '';
-      const res = await authFetch(`${apiUrl}/api/projects?page=${pageToFetch}&limit=6${clientParam}`);
+      const res = await authFetch(`${apiUrl}/api/projects?page=${pageToFetch}&limit=${size}${clientParam}`);
       if (res.ok) {
         const data = await res.json();
+        if (requestId !== projectRequest.current) return;
+        const nextPage = getPagination(data.pagination?.totalProjects ?? 0, pageToFetch, size).page;
+        if (data.pagination && nextPage !== pageToFetch) {
+          await fetchBackendProjects(nextPage, size);
+          return;
+        }
         if (data.projects && Array.isArray(data.projects)) {
           const mapped: Project[] = data.projects.map((p: any) => {
             const rawStatus = (p.status || 'draft').toLowerCase();
@@ -234,19 +246,19 @@ export function ClientDashboard({ defaultTab = 'projects' }: ClientDashboardProp
         }
         if (data.pagination) {
           setCurrentPage(data.pagination.page);
-          setTotalPages(data.pagination.totalPages);
+          setPageSize(size);
           setTotalProjects(data.pagination.totalProjects);
         }
       }
     } catch (err: any) {
-      toast.error('Could not fetch projects from backend');
+      if (requestId === projectRequest.current) toast.error('Could not fetch projects from backend');
     } finally {
-      setLoading(false);
+      if (requestId === projectRequest.current) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchBackendProjects();
+    fetchBackendProjects(1);
   }, [address, activeWalletAddress]);
 
   // Add Milestone to Form
@@ -718,7 +730,7 @@ export function ClientDashboard({ defaultTab = 'projects' }: ClientDashboardProp
 
         {/* VIEW 1: MY PROJECTS */}
         {activeTab === 'projects' && (
-          <div className="bg-[#18181b] border border-[#27272a] rounded-2xl p-6 sm:p-8 shadow-2xl transition-all duration-300">
+          <div ref={listRef} className="scroll-mt-6 bg-[#18181b] border border-[#27272a] rounded-2xl p-6 sm:p-8 shadow-2xl transition-all duration-300">
             {/* Dashboard Statistic Cards with Smooth NumberRoll Counter */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
               <div className="bg-[#121214] border border-[#27272a] rounded-xl p-4">
@@ -743,7 +755,7 @@ export function ClientDashboard({ defaultTab = 'projects' }: ClientDashboardProp
 
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-1.5">
-                <NumberRoll value={projects.length} /> <span>{projects.length === 1 ? 'project' : 'projects'}</span>
+                <NumberRoll value={totalProjects} /> <span>{totalProjects === 1 ? 'project' : 'projects'}</span>
               </h2>
               <div className="flex items-center gap-2">
                 <button
@@ -902,65 +914,18 @@ export function ClientDashboard({ defaultTab = 'projects' }: ClientDashboardProp
                     </div>
                   </div>
                 ))}
-
-                {/* Pagination Bar */}
-                {totalPages > 1 && (
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-[#27272a]">
-                    <div className="text-xs text-[#a1a1aa]">
-                      Showing Page <span className="font-bold text-white">{currentPage}</span> of{' '}
-                      <span className="font-bold text-white">{totalPages}</span> ({totalProjects}{' '}
-                      total projects)
-                    </div>
-                    <div className="flex items-center space-x-1.5">
-                      <button
-                        onClick={() => {
-                          if (currentPage > 1) {
-                            const prev = currentPage - 1;
-                            setCurrentPage(prev);
-                            fetchBackendProjects(prev);
-                          }
-                        }}
-                        disabled={currentPage <= 1}
-                        className="px-3 py-1.5 bg-[#232326] hover:bg-[#27272a] disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold text-[#e4e4e7] rounded-xl border border-[#333338] transition-colors"
-                      >
-                        ← Previous
-                      </button>
-
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
-                        <button
-                          key={pg}
-                          onClick={() => {
-                            setCurrentPage(pg);
-                            fetchBackendProjects(pg);
-                          }}
-                          className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-colors ${
-                            pg === currentPage
-                              ? 'bg-blue-600 text-white border border-blue-500'
-                              : 'bg-[#232326] hover:bg-[#27272a] text-[#a1a1aa] border border-[#333338]'
-                          }`}
-                        >
-                          {pg}
-                        </button>
-                      ))}
-
-                      <button
-                        onClick={() => {
-                          if (currentPage < totalPages) {
-                            const next = currentPage + 1;
-                            setCurrentPage(next);
-                            fetchBackendProjects(next);
-                          }
-                        }}
-                        disabled={currentPage >= totalPages}
-                        className="px-3 py-1.5 bg-[#232326] hover:bg-[#27272a] disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold text-[#e4e4e7] rounded-xl border border-[#333338] transition-colors"
-                      >
-                        Next →
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
+            <Pagination
+              totalItems={totalProjects}
+              page={currentPage}
+              pageSize={pageSize}
+              itemLabel="projects"
+              disabled={loading}
+              scrollTarget={listRef}
+              onPageChange={(page) => void fetchBackendProjects(page)}
+              onPageSizeChange={(size) => void fetchBackendProjects(1, size)}
+            />
           </div>
         )}
 
